@@ -20,7 +20,10 @@
   },
   "homepage": "https://github.com/papabarbas/typescript-express-graphql#readme",
   "dependencies": {
-    "express": "^4.16.4"
+    "@types/mongoose": "^5.3.5",
+    "envalid": "^4.1.4",
+    "express": "^4.16.4",
+    "mongoose": "^5.3.16"
   },
   "devDependencies": {
     "ts-node": "^7.0.1",
