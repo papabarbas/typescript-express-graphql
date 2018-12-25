@@ -1,8 +1,12 @@
-import { Router, Request, Response } from 'express'
+import { Router, Request, Response, NextFunction } from 'express'
 import Controller from '../interfaces/controller.interface'
 import PostInterface from './post.interface'
 import postModel from './posts.model'
 import * as mongoose from 'mongoose'
+import validationMiddleware from '../middleware/validation.middleware'
+import CreatePostDto from './post.dto'
+
+import PostNotFoundException from '../exceptions/PostNotFoundException'
 
 class PostsController {
   public path = '/posts'
@@ -13,24 +17,32 @@ class PostsController {
     this.initializeRoutes()
   }
 
-  private createPost = async (request: Request, response: Response) => {
+  private createPost = async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
     const postData: PostInterface = request.body
     const newPost = await this.post.create(postData).catch(err => {
-      throw new Error(err)
+      next(err)
     })
-    response.send(newPost)
+    response.status(201).send(newPost)
   }
 
-  private getPostById = async (request: Request, response: Response) => {
+  private getPostById = async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
     const { id } = request.params
     if (mongoose.Types.ObjectId.isValid(id)) {
       try {
         const foundPost = await this.post.findById(id)
         foundPost
           ? response.send(foundPost)
-          : response.status(404).send('post not found')
+          : next(new PostNotFoundException(id))
       } catch (err) {
-        throw new Error(err)
+        next(err)
       }
     } else {
       response.status(400).send('invalid id')
@@ -43,13 +55,17 @@ class PostsController {
     response.send(posts)
   }
 
-  private updatePost = async (request: Request, response: Response) => {
+  private updatePost = async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
     const { id } = request.params
     if (mongoose.Types.ObjectId.isValid(id)) {
       try {
         const postData: PostInterface = request.body
         if (!postData) {
-          response.status(400).send('BAD REUEST')
+          response.status(400).send('BAD REQUEST')
         }
         const updatedPost = await this.post.findByIdAndUpdate(
           { _id: id },
@@ -58,29 +74,48 @@ class PostsController {
         )
         updatedPost
           ? response.send(updatedPost)
-          : response.status(404).send('post not found')
+          : next(new PostNotFoundException(id))
       } catch (err) {
-        throw new Error(err)
+        next(err)
       }
     } else {
       response.status(400).send('invalid id')
     }
   }
 
-  private deletePost = async (request: Request, response: Response) => {
-    const deletedPost = await this.post
-      .findByIdAndDelete(request.params.id)
-      .catch(err => {
-        throw new Error(err)
-      })
-    response.send(deletedPost)
+  private deletePost = async (
+    request: Request,
+    response: Response,
+    next: NextFunction
+  ) => {
+    const { id } = request.params
+    if (mongoose.Types.ObjectId.isValid(id)) {
+      try {
+        const deletedPost = await this.post.findByIdAndDelete(id)
+        deletedPost
+          ? response.send(deletedPost)
+          : next(new PostNotFoundException(id))
+      } catch (error) {
+        next(error)
+      }
+    } else {
+      response.status(400).send('invalid id')
+    }
   }
 
   public initializeRoutes() {
-    this.router.post(this.path, this.createPost)
+    this.router.post(
+      this.path,
+      validationMiddleware(CreatePostDto),
+      this.createPost
+    )
     this.router.get(this.path, this.getAllPosts)
     this.router.get(`${this.path}/:id`, this.getPostById)
-    this.router.patch(`${this.path}/:id`, this.updatePost)
+    this.router.patch(
+      `${this.path}/:id`,
+      validationMiddleware(CreatePostDto, true),
+      this.updatePost
+    )
     this.router.delete(`${this.path}/:id`, this.deletePost)
   }
 }
